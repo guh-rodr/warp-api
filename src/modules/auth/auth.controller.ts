@@ -26,7 +26,7 @@ export class AuthController {
 
     const cookieOptions: CookieSerializeOptions = {
       httpOnly: true,
-      sameSite: 'strict',
+      sameSite: 'none',
       path: '/',
       secure: this.configService.get('NODE_ENV') === 'production',
     };
@@ -69,7 +69,7 @@ export class AuthController {
 
     const cookieOptions: CookieSerializeOptions = {
       httpOnly: true,
-      sameSite: 'strict',
+      sameSite: 'none',
       path: '/',
       secure: this.configService.get('NODE_ENV') === 'production',
     };
