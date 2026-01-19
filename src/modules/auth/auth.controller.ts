@@ -24,17 +24,21 @@ export class AuthController {
   async signIn(@Body() body: SignInUserBodyDto, @Res({ passthrough: true }) response: FastifyReply) {
     const { user, accessToken, refreshToken } = await this.authService.signIn(body);
 
-    response.setCookie('refreshToken', refreshToken, {
+    const cookieOptions: CookieSerializeOptions = {
       httpOnly: true,
       sameSite: 'strict',
       path: '/',
+      secure: this.configService.get('NODE_ENV') === 'production',
+    };
+
+    response.setCookie('refreshToken', refreshToken, {
+      ...cookieOptions,
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     response.setCookie('accessToken', accessToken, {
-      httpOnly: true,
-      sameSite: 'strict',
-      path: '/',
+      ...cookieOptions,
+      maxAge: 15 * 60 * 1000,
     });
 
     return user;
