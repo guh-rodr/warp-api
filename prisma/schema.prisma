@@ -1,0 +1,130 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider        = "prisma-client"
+  output          = "../generated/prisma"
+  previewFeatures = ["views"]
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model UserAccount {
+  id           String        @id @default(cuid())
+  name         String
+  email        String        @unique
+  password     String
+  refreshToken RefreshToken?
+}
+
+model RefreshToken {
+  id        String      @id @default(cuid())
+  token     String
+  userId    String      @unique
+  user      UserAccount @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+  expiresAt DateTime
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  note      String?
+  createdAt DateTime @default(now())
+  purchases Sale[]
+}
+
+model SaleItem {
+  id           String  @id @default(cuid())
+  sale         Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  saleId       String
+  costPrice    Int
+  salePrice    Int
+  model        Model?  @relation(fields: [modelId], references: [id], onDelete: SetNull)
+  modelId      String?
+  modelName    String
+  categoryName String
+  color        String
+  print        String
+  size         String
+}
+
+model Model {
+  id         String     @id @default(cuid())
+  name       String
+  costPrice  Int?
+  salePrice  Int?
+  category   Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categoryId String?
+  items      SaleItem[]
+}
+
+model Category {
+  id     String  @id @default(cuid())
+  name   String  @unique
+  models Model[]
+}
+
+model CashFlowTransaction {
+  id          String   @id @default(cuid())
+  description String
+  value       Int
+  flow        String
+  category    String
+  date        DateTime
+  createdAt   DateTime @default(now())
+  sale        Sale?    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  saleId      String?
+}
+
+model Sale {
+  id            String                @id @default(cuid())
+  total         Int
+  profit        Int
+  items         SaleItem[]
+  customer      Customer?             @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerId    String?
+  createdAt     DateTime              @default(now())
+  purchasedAt   DateTime?
+  isInstallment Boolean
+  transactions  CashFlowTransaction[]
+}
+
+view CustomerStats {
+  id             String
+  name           String
+  phone          String
+  totalSpent     Int
+  debt           Int
+  lastPurchaseAt DateTime?
+  createdAt      DateTime  @default(now())
+}
+
+view SaleStats {
+  id           String
+  customerName String
+  customerId   String
+  status       String
+  total        Int
+  profit       Int
+  itemCount    Int
+  purchasedAt  DateTime
+  createdAt    DateTime
+}
+
+view CashFlowStats {
+  id          String
+  description String
+  category    String
+  value       Int
+  flow        String
+  saleId      String?
+  date        DateTime
+  createdAt   DateTime
+}
