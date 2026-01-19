@@ -1,4 +1,6 @@
+import { CookieSerializeOptions } from '@fastify/cookie';
 import { Body, Controller, Get, Post, Req, Res } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { FastifyReply, FastifyRequest } from 'fastify';
 import { Public } from 'src/common/decorators/public.decorator';
 import { AuthService } from './auth.service';
@@ -8,7 +10,10 @@ import { SignUpUserBodyDto } from './dto/signup-user.dto';
 @Public()
 @Controller('/auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private configService: ConfigService,
+  ) {}
 
   @Post('/signup')
   async signUp(@Body() body: SignUpUserBodyDto) {
@@ -58,17 +63,21 @@ export class AuthController {
 
     const { accessToken, refreshToken } = await this.authService.refreshTokens(oldRefreshToken);
 
-    response.setCookie('refreshToken', refreshToken, {
+    const cookieOptions: CookieSerializeOptions = {
       httpOnly: true,
       sameSite: 'strict',
       path: '/',
+      secure: this.configService.get('NODE_ENV') === 'production',
+    };
+
+    response.setCookie('refreshToken', refreshToken, {
+      ...cookieOptions,
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     response.setCookie('accessToken', accessToken, {
-      httpOnly: true,
-      sameSite: 'strict',
-      path: '/',
+      ...cookieOptions,
+      maxAge: 15 * 60 * 1000,
     });
   }
 }
