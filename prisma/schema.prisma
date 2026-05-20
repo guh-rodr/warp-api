@@ -53,16 +53,18 @@ model SaleItem {
 }
 
 model ProductVariant {
-  id        String     @id @default(cuid())
-  color     String     @default("")
-  size      String     @default("")
-  costPrice Int?
-  salePrice Int?
-  quantity  Int
-  productId String
-  product   Product    @relation(fields: [productId], references: [id])
-  saleItems SaleItem[]
-  deletedAt DateTime?
+  id             String          @id @default(cuid())
+  color          String          @default("")
+  size           String          @default("")
+  averageCost    Int?
+  costPrice      Int?
+  salePrice      Int?
+  quantity       Int
+  productId      String
+  product        Product         @relation(fields: [productId], references: [id])
+  saleItems      SaleItem[]
+  deletedAt      DateTime?
+  stockMovements StockMovement[]
 
   @@unique([productId, color, size])
 }
@@ -83,6 +85,32 @@ model Category {
   products Product[]
 }
 
+enum StockMovementType {
+  ENTRY
+  EXIT
+}
+
+enum StockMovementOrigin {
+  MANUAL
+  SALE
+  PURCHASE
+}
+
+model StockMovement {
+  id        String              @id @default(cuid())
+  type      StockMovementType
+  origin    StockMovementOrigin
+  reason    String?
+  unitCost  Int?
+  quantity  Int
+  variantId String
+  variant   ProductVariant      @relation(fields: [variantId], references: [id])
+  saleId    String?
+  sale      Sale?               @relation(fields: [saleId], references: [id])
+  date      DateTime            @default(now())
+  createdAt DateTime            @default(now())
+}
+
 model CashFlowTransaction {
   id          String   @id @default(cuid())
   description String
@@ -96,16 +124,17 @@ model CashFlowTransaction {
 }
 
 model Sale {
-  id            String                @id @default(cuid())
-  total         Int
-  profit        Int
-  items         SaleItem[]
-  customer      Customer?             @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  customerId    String?
-  createdAt     DateTime              @default(now())
-  purchasedAt   DateTime?
-  isInstallment Boolean
-  transactions  CashFlowTransaction[]
+  id             String                @id @default(cuid())
+  total          Int
+  profit         Int
+  items          SaleItem[]
+  customer       Customer?             @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerId     String?
+  createdAt      DateTime              @default(now())
+  purchasedAt    DateTime?
+  isInstallment  Boolean
+  transactions   CashFlowTransaction[]
+  stockMovements StockMovement[]
 }
 
 view CustomerStats {
@@ -151,4 +180,20 @@ view ProductStats {
   quantity     Int
   minSalePrice Float
   maxSalePrice Float
+}
+
+view StockMovementStats {
+  id           String
+  type         StockMovementType
+  origin       StockMovementOrigin
+  quantity     Int
+  balance      Int
+  date         DateTime
+  unitCost     Int?
+  reason       String?
+  productId    String
+  productName  String
+  variantId    String
+  variantSize  String
+  variantColor String
 }

@@ -1,5 +1,6 @@
-import { HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from 'generated/prisma/client';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { Prisma } from 'generated/prisma/browser';
+import { PrismaClient } from 'generated/prisma/client';
 import { DateTime } from 'luxon';
 import { buildPrismaFilter } from 'src/common/utils/filter.util';
 import { buildPrismaPagination } from 'src/common/utils/pagination.util';
@@ -23,31 +24,46 @@ import { SALE_SORTABLE_FIELDS } from './sale.sort';
 export class SaleService {
   constructor(private prisma: PrismaService) {}
 
-  async create(data: CreateSaleBodyDto) {
-    const variantsIds = data.items.map((i) => i.variantId);
+  private getVariantsFrequency(ids: string[]) {
+    const freq = new Map<string, number>();
+    for (const id of ids) {
+      freq.set(id, (freq.get(id) ?? 0) + 1);
+    }
+    return freq;
+  }
 
-    const variants = await this.prisma.productVariant.findMany({
-      where: { id: { in: variantsIds } },
-      select: {
-        id: true,
-        costPrice: true,
+  private async updateVariantStock(
+    variantId: string,
+    saleId: string,
+    quantity: number,
+    prismaClient: Prisma.TransactionClient | PrismaClient = this.prisma,
+  ) {
+    await prismaClient.productVariant.update({
+      where: { id: variantId },
+      data: {
+        quantity: { decrement: quantity },
+        stockMovements: {
+          create: {
+            type: 'EXIT',
+            origin: 'SALE',
+            quantity,
+            saleId: saleId,
+          },
+        },
       },
     });
+  }
 
-    const purchasedAt = DateTime.fromISO(data.purchasedAt, { zone: 'America/Sao_Paulo' }).toJSDate();
-    const installmentPaidAt = DateTime.fromISO(data.installment?.paidAt, { zone: 'America/Sao_Paulo' }).toJSDate();
-    const saleType = !!data.installment ? 'Parcela 1' : 'À vista';
-
-    const { totalCostPrice, totalSalePrice, variantCounts } = data.items.reduce(
+  private calcSaleSummary(items: CreateSaleBodyDto['items'], variantsMapping: Map<string, any>) {
+    const { totalCostPrice, totalSalePrice } = items.reduce(
       (acc, cv) => {
-        const { costPrice } = variants.find((v) => v.id === cv.variantId);
+        const { averageCost, costPrice } = variantsMapping.get(cv.variantId);
 
-        acc.totalCostPrice += costPrice;
+        acc.totalCostPrice += averageCost ?? costPrice ?? 0;
         acc.totalSalePrice += cv.salePrice;
-        acc.variantCounts[cv.variantId] = (acc.variantCounts[cv.variantId] ?? 0) + 1;
         return acc;
       },
-      { totalCostPrice: 0, totalSalePrice: 0, variantCounts: {} },
+      { totalCostPrice: 0, totalSalePrice: 0 },
     );
 
     const summary = {
@@ -55,90 +71,81 @@ export class SaleService {
       profit: totalSalePrice - totalCostPrice,
     };
 
-    let transactionDesc = '';
+    return summary;
+  }
 
-    if (data.customerId) {
-      const customer = await this.prisma.customer.findFirstOrThrow({
-        where: { id: data.customerId },
+  async create(data: CreateSaleBodyDto) {
+    const variantsIds = data.items.map((i) => i.variantId);
+    const variantsFrequency = this.getVariantsFrequency(variantsIds);
+
+    const sale = await this.prisma.$transaction(async (tx) => {
+      const variants = await tx.productVariant.findMany({
+        where: { id: { in: variantsIds } },
+        select: {
+          id: true,
+          averageCost: true,
+          costPrice: true,
+          salePrice: true,
+          product: { select: { name: true, category: { select: { name: true } } } },
+        },
       });
 
-      const firstName = customer.name.split(' ')[0];
+      const variantsMapping = new Map(variants.map(({ id, ...variant }) => [id, variant]));
+      const summary = this.calcSaleSummary(data.items, variantsMapping);
 
-      transactionDesc = `Compra de ${firstName} - ${saleType}`;
-    } else {
-      transactionDesc = `Compra [sem cliente] - ${saleType}`;
-    }
+      const purchasedAt = DateTime.fromISO(data.purchasedAt, { zone: 'America/Sao_Paulo' }).toJSDate();
 
-    const transactionValue = !!data.installment ? data.installment.value : summary.total;
+      const saleItems: Prisma.SaleItemCreateManySaleInput[] = data.items.map((item) => {
+        const { averageCost, costPrice, product } = variantsMapping.get(item.variantId);
 
-    const productIds = data.items.map((i) => i.productId);
-    const products = await this.prisma.product.findMany({
-      where: {
-        id: { in: productIds },
-        deletedAt: null,
-      },
-      select: {
-        id: true,
-        name: true,
-        category: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-    });
+        return {
+          categoryName: product.category.name,
+          productName: product.name,
+          costPrice: averageCost ?? costPrice ?? 0,
+          salePrice: item.salePrice,
+          variantId: item.variantId,
+        };
+      });
 
-    const items: Prisma.SaleItemCreateManySaleInput[] = data.items.map((item) => {
-      const product = products.find((m) => m.id === item.productId);
-
-      if (!product) {
-        throw new NotFoundException(`Produto ID ${item.productId} não encontrado`);
-      }
-
-      const costPrice = variants.find((v) => v.id === item.variantId).costPrice;
-
-      return {
-        categoryName: product.category.name,
-        productName: product.name,
-        costPrice,
-        salePrice: item.salePrice,
-        variantId: item.variantId,
-      };
-    });
-
-    const [sale] = await this.prisma.$transaction([
-      this.prisma.sale.create({
+      // registra a venda
+      const createdSale = await tx.sale.create({
         data: {
           ...summary,
           customerId: data.customerId,
-          isInstallment: !!data.installment,
+          isInstallment: false,
           purchasedAt,
           items: {
-            createMany: { data: items },
-          },
-          transactions: {
-            create: {
-              flow: 'inflow',
-              date: installmentPaidAt,
-              description: transactionDesc,
-              category: 'SALES_REVENUE',
-              value: transactionValue,
-            },
+            createMany: { data: saleItems },
           },
         },
-      }),
-      ...variantsIds.map((id) =>
-        this.prisma.productVariant.update({
-          where: { id },
-          data: {
-            quantity: {
-              decrement: variantCounts[id],
-            },
-          },
-        }),
-      ),
-    ]);
+        include: {
+          customer: { select: { name: true } },
+        },
+      });
+
+      const transactionDesc = createdSale.customer ? `Compra de ${createdSale.customer.name}` : `Compra [sem cliente]`;
+
+      // registra a transação
+      await tx.cashFlowTransaction.create({
+        data: {
+          category: 'SALES_REVENUE',
+          flow: 'INFLOW',
+          value: summary.total,
+          description: transactionDesc,
+          saleId: createdSale.id,
+          date: purchasedAt,
+        },
+      });
+
+      // atualiza o estoque das variantes e cria a mov. estoque
+      await Promise.all(
+        [...variantsFrequency.entries()].map(([variantId, quantity]) =>
+          this.updateVariantStock(variantId, createdSale.id, quantity, tx),
+        ),
+      );
+
+      return createdSale;
+    });
 
     return sale;
   }

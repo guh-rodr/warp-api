@@ -8,6 +8,7 @@ import { CustomerModule } from './modules/customer/customer.module';
 import { ProductModule } from './modules/product/product.module';
 import { SaleModule } from './modules/sales/sale.module';
 import { StatsModule } from './modules/stats/stats.module';
+import { StockMovementModule } from './modules/stock-movement/stock-movement.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { StatsModule } from './modules/stats/stats.module';
     StatsModule,
     TransactionModule,
     ProductModule,
+    StockMovementModule,
   ],
 })
 export class AppModule {}
