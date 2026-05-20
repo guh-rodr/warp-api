@@ -294,6 +294,7 @@ export class ProductService {
         color: true,
         size: true,
         quantity: true,
+        averageCost: true,
         costPrice: true,
         salePrice: true,
       },
