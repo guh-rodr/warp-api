@@ -12,6 +12,7 @@ import {
   CustomerAutocompleteResponseDto,
   CustomerListResponseDto,
   CustomerOverviewResponseDto,
+  CustomerPreferencesDto,
   CustomerSaleResponseDto,
   CustomerStatsResponseDto,
   UpdateCustomerResponseDto,
@@ -86,41 +87,39 @@ export class CustomerService {
   }
 
   private async getPreferences(id: string) {
-    const [topCategoryRaw, topColorRaw, topSizeRaw] = await Promise.all([
-      this.prisma.$queryRaw`
-        SELECT
-          c.name as category,
-          COUNT(si.id) as count
-        FROM SaleItem si
-        JOIN Model m ON si.modelId = m.id
-        JOIN Category c ON m.categoryId = c.id
-        JOIN Sale s ON si.saleId = s.id
-        WHERE s.customerId = ${id}
-        GROUP BY c.name
-        ORDER BY count DESC
-        LIMIT 1;
-      `,
+    const preferences = await this.prisma.$queryRaw<CustomerPreferencesDto[]>`
+      WITH base AS (
+        SELECT pv.color, pv.size, si."categoryName"
+        FROM "ProductVariant" pv
+        JOIN "SaleItem" si ON si."variantId" = pv.id
+        JOIN "Sale" s ON s.id = si."saleId"
+        WHERE s."customerId" = ${id}
+      )
 
-      this.prisma.saleItem.groupBy({
-        by: ['color'],
-        where: { sale: { customerId: id } },
-        _count: { color: true },
-        orderBy: { _count: { color: 'desc' } },
-        take: 1,
-      }),
+      SELECT
+      (
+        SELECT color FROM base
+        GROUP BY color
+        ORDER BY COUNT(*) DESC
+        LIMIT 1
+      ) AS "topColor",
 
-      this.prisma.saleItem.groupBy({
-        by: ['size'],
-        where: { sale: { customerId: id } },
-        _count: { size: true },
-        orderBy: { _count: { size: 'desc' } },
-        take: 1,
-      }),
-    ]);
+      (
+        SELECT size FROM base
+        GROUP BY size
+        ORDER BY COUNT(*) DESC
+        LIMIT 1
+      ) AS "topSize",
 
-    const topCategory = topCategoryRaw[0]?.category;
-    const topColor = topColorRaw[0]?.color;
-    const topSize = topSizeRaw[0]?.size;
+      (
+        SELECT "categoryName" FROM base
+        GROUP BY "categoryName"
+        ORDER BY COUNT(*) DESC
+        LIMIT 1
+      ) AS "topCategory";
+    `;
+
+    const { topColor, topCategory, topSize } = preferences[0];
 
     return {
       topCategory,
