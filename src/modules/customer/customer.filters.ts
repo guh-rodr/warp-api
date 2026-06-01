@@ -1,7 +1,7 @@
 export const CUSTOMER_FILTERS_MAP = {
   name: { type: 'text' },
   phone: { type: 'text' },
-  debt: { type: 'number' },
-  totalSpent: { type: 'number' },
+  debt: { type: 'currency' },
+  totalSpent: { type: 'currency' },
   lastPurchaseAt: { type: 'date' },
 };

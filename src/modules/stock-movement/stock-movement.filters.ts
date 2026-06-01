@@ -3,5 +3,5 @@ export const STOCKMOVEMENT_FILTERS_MAP = {
   productId: { type: 'text' },
   type: { type: 'text' },
   origin: { type: 'text' },
-  unitCost: { type: 'number' },
+  unitCost: { type: 'currency' },
 };

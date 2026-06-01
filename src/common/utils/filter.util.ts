@@ -18,11 +18,17 @@ const FILTER_TRANSFORMERS = {
     equals: { [f.field]: f.value },
     not_equals: { [f.field]: { not: f.value } },
   }),
-  number: (f: SingleFilter) => ({
+  currency: (f: SingleFilter) => ({
     equals: { [f.field]: toCents(+f.value) },
     not_equals: { [f.field]: { not: toCents(+f.value) } },
     greater_than: { [f.field]: { gt: toCents(+f.value) } },
     less_than: { [f.field]: { lt: toCents(+f.value) } },
+  }),
+  number: (f: SingleFilter) => ({
+    equals: { [f.field]: +f.value },
+    not_equals: { [f.field]: { not: +f.value } },
+    greater_than: { [f.field]: { gt: +f.value } },
+    less_than: { [f.field]: { lt: +f.value } },
   }),
   date: (f: SingleFilter) => {
     const date = DateTime.fromISO(f.value, { zone: 'America/Sao_Paulo' });
