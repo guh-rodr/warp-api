@@ -60,8 +60,8 @@ export class CustomerController {
   @ApiResponse({ status: 204, description: 'Cliente excluído com sucesso' })
   @HttpCode(204)
   @Delete(':id')
-  delete(@Param('id') id: string, @Query('deleteSales') canDeleteSales: boolean) {
-    return this.customerService.delete(id, canDeleteSales);
+  delete(@Param('id') id: string) {
+    return this.customerService.delete(id);
   }
 
   @ApiOperation({ summary: 'Exclui múltiplos clientes' })
@@ -76,8 +76,8 @@ export class CustomerController {
   @ApiResponse({ status: 400, description: 'Erro de validação nos campos enviados', type: ValidationErrorResponseDto })
   @HttpCode(204)
   @Delete()
-  deleteMany(@Body() body: DeleteManyCustomerBodyDto, @Query('deleteSales') canDeleteSales: boolean) {
-    return this.customerService.deleteMany(body, canDeleteSales);
+  deleteMany(@Body() body: DeleteManyCustomerBodyDto) {
+    return this.customerService.deleteMany(body);
   }
 
   @ApiOperation({ summary: 'Retorna os 5 primeiros clientes relacionados a uma busca (id e name apenas)' })

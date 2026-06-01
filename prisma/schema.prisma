@@ -32,12 +32,13 @@ model RefreshToken {
 }
 
 model Customer {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   name      String
   phone     String?
   note      String?
-  createdAt DateTime @default(now())
   sales     Sale[]
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
 }
 
 model SaleItem {
