@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider        = "prisma-client"
   output          = "../generated/prisma"
@@ -26,45 +20,47 @@ model RefreshToken {
   id        String      @id @default(cuid())
   token     String
   userId    String      @unique
-  user      UserAccount @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime    @default(now())
   expiresAt DateTime
+  user      UserAccount @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Customer {
-  id        String    @id @default(cuid())
-  name      String
-  phone     String?
-  note      String?
-  sales     Sale[]
-  createdAt DateTime  @default(now())
-  deletedAt DateTime?
+  id          String       @id @default(cuid())
+  name        String
+  phone       String?
+  note        String?
+  createdAt   DateTime     @default(now())
+  deletedAt   DateTime?
+  payments    Payment[]
+  receivables Receivable[]
+  sales       Sale[]
 }
 
 model SaleItem {
   id           String         @id @default(cuid())
-  sale         Sale           @relation(fields: [saleId], references: [id], onDelete: Cascade)
   saleId       String
   variantId    String
-  variant      ProductVariant @relation(fields: [variantId], references: [id])
-  productName  String
   categoryName String
   costPrice    Int
   salePrice    Int
+  productName  String
+  sale         Sale           @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  variant      ProductVariant @relation(fields: [variantId], references: [id])
 }
 
 model ProductVariant {
   id             String          @id @default(cuid())
   color          String          @default("")
   size           String          @default("")
-  averageCost    Int?
   costPrice      Int?
   salePrice      Int?
   quantity       Int
   productId      String
+  deletedAt      DateTime?
+  averageCost    Int?
   product        Product         @relation(fields: [productId], references: [id])
   saleItems      SaleItem[]
-  deletedAt      DateTime?
   stockMovements StockMovement[]
 
   @@unique([productId, color, size])
@@ -73,17 +69,166 @@ model ProductVariant {
 model Product {
   id         String           @id @default(cuid())
   name       String
-  category   Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   categoryId String?
   isVariable Boolean          @default(false)
-  variants   ProductVariant[]
   deletedAt  DateTime?
+  category   Category?        @relation(fields: [categoryId], references: [id])
+  variants   ProductVariant[]
 }
 
 model Category {
   id       String    @id @default(cuid())
   name     String    @unique
   products Product[]
+}
+
+model StockMovement {
+  id        String              @id @default(cuid())
+  type      StockMovementType
+  origin    StockMovementOrigin
+  reason    String?
+  unitCost  Int?
+  quantity  Int
+  variantId String
+  saleId    String?
+  date      DateTime            @default(now())
+  createdAt DateTime            @default(now())
+  sale      Sale?               @relation(fields: [saleId], references: [id])
+  variant   ProductVariant      @relation(fields: [variantId], references: [id])
+}
+
+model CashFlowTransaction {
+  id           String               @id @default(cuid())
+  description  String
+  value        Int
+  category     String
+  date         DateTime
+  createdAt    DateTime             @default(now())
+  paymentId    String?
+  flow         TransactionDirection
+  origin       TransactionOrigin
+  payment      Payment?             @relation(fields: [paymentId], references: [id])
+  reversalOfId String?              @unique
+  reversalOf   CashFlowTransaction? @relation("CashFlowReversal", fields: [reversalOfId], references: [id])
+  reversedBy   CashFlowTransaction? @relation("CashFlowReversal")
+}
+
+model Sale {
+  id             String          @id @default(cuid())
+  total          Int
+  profit         Int
+  customerId     String?
+  createdAt      DateTime        @default(now())
+  purchasedAt    DateTime
+  receivables    Receivable[]
+  customer       Customer?       @relation(fields: [customerId], references: [id])
+  items          SaleItem[]
+  stockMovements StockMovement[]
+}
+
+model Payment {
+  id           String                @id @default(cuid())
+  customerId   String?
+  method       PaymentMethod
+  total        Int
+  paidAt       DateTime
+  createdAt    DateTime              @default(now())
+  reversedAt   DateTime?
+  transactions CashFlowTransaction[]
+  customer     Customer?             @relation(fields: [customerId], references: [id])
+  allocations  PaymentAllocation[]
+}
+
+model PaymentAllocation {
+  id           String     @id @default(cuid())
+  amount       Int
+  paymentId    String
+  receivableId String
+  payment      Payment    @relation(fields: [paymentId], references: [id])
+  receivable   Receivable @relation(fields: [receivableId], references: [id])
+}
+
+model Receivable {
+  id               String              @id @default(cuid())
+  type             ReceivableType
+  status           ReceivableStatus
+  total            Int
+  paid             Int                 @default(0)
+  installmentIdx   Int?
+  installmentCount Int?
+  customerId       String?
+  saleId           String
+  paidAt           DateTime?
+  dueDate          DateTime?
+  createdAt        DateTime            @default(now())
+  deletedAt        DateTime?
+  allocations      PaymentAllocation[]
+  customer         Customer?           @relation(fields: [customerId], references: [id])
+  sale             Sale                @relation(fields: [saleId], references: [id])
+}
+
+view CustomerStats {
+  id             String
+  name           String
+  phone          String
+  createdAt      DateTime
+  totalSpent     BigInt
+  debt           BigInt
+  lastPurchaseAt DateTime? @db.Timestamp(6)
+}
+
+view SaleStats {
+  customerName String
+  customerId   String
+  id           String
+  total        Int
+  profit       Int
+  purchasedAt  DateTime
+  createdAt    DateTime
+  itemCount    BigInt
+  status       String
+}
+
+view ProductStats {
+  id           String
+  name         String
+  categoryId   String
+  categoryName String
+  isVariable   Boolean
+  variantCount Int
+  quantity     Int
+  minSalePrice Int
+  maxSalePrice Int
+}
+
+view CashFlowStats {
+  id          String
+  description String
+  flow        TransactionDirection
+  value       Int
+  category    String
+}
+
+view StockMovementStats {
+  id           String
+  type         StockMovementType
+  saleId       String?
+  unitCost     Int?
+  quantity     Int
+  origin       StockMovementOrigin
+  date         DateTime
+  reason       String?
+  balance      Int
+  productId    String
+  productName  String
+  variantId    String
+  variantSize  String
+  variantColor String
+}
+
+enum TransactionOrigin {
+  MANUAL
+  PAYMENT
 }
 
 enum StockMovementType {
@@ -97,104 +242,26 @@ enum StockMovementOrigin {
   PURCHASE
 }
 
-model StockMovement {
-  id        String              @id @default(cuid())
-  type      StockMovementType
-  origin    StockMovementOrigin
-  reason    String?
-  unitCost  Int?
-  quantity  Int
-  variantId String
-  variant   ProductVariant      @relation(fields: [variantId], references: [id])
-  saleId    String?
-  sale      Sale?               @relation(fields: [saleId], references: [id])
-  date      DateTime            @default(now())
-  createdAt DateTime            @default(now())
+enum TransactionDirection {
+  INFLOW
+  OUTFLOW
 }
 
-model CashFlowTransaction {
-  id          String   @id @default(cuid())
-  description String
-  value       Int
-  flow        String
-  category    String
-  date        DateTime
-  createdAt   DateTime @default(now())
-  sale        Sale?    @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  saleId      String?
+enum PaymentMethod {
+  PIX
+  CASH
+  CREDIT_CARD
+  DEBIT_CARD
 }
 
-model Sale {
-  id             String                @id @default(cuid())
-  total          Int
-  profit         Int
-  items          SaleItem[]
-  customer       Customer?             @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  customerId     String?
-  createdAt      DateTime              @default(now())
-  purchasedAt    DateTime?
-  isInstallment  Boolean
-  transactions   CashFlowTransaction[]
-  stockMovements StockMovement[]
+enum ReceivableStatus {
+  PENDING
+  PARTIAL
+  PAID
 }
 
-view CustomerStats {
-  id             String
-  name           String
-  phone          String
-  totalSpent     Int
-  debt           Int
-  lastPurchaseAt DateTime?
-  createdAt      DateTime  @default(now())
-}
-
-view SaleStats {
-  id           String
-  customerName String
-  customerId   String
-  status       String
-  total        Int
-  profit       Int
-  itemCount    Int
-  purchasedAt  DateTime
-  createdAt    DateTime
-}
-
-view CashFlowStats {
-  id          String
-  description String
-  category    String
-  value       Int
-  flow        String
-  saleId      String?
-  date        DateTime
-  createdAt   DateTime
-}
-
-view ProductStats {
-  id           String
-  name         String
-  categoryId   String
-  categoryName String
-  isVariable   Boolean
-  variantCount Int
-  quantity     Int
-  minSalePrice Float
-  maxSalePrice Float
-}
-
-view StockMovementStats {
-  id           String
-  type         StockMovementType
-  origin       StockMovementOrigin
-  quantity     Int
-  balance      Int
-  date         DateTime
-  unitCost     Int?
-  reason       String?
-  productId    String
-  productName  String
-  variantId    String
-  variantSize  String
-  variantColor String
+enum ReceivableType {
+  IMMEDIATE
+  INSTALLMENT
+  TAB
 }
