@@ -1,6 +1,7 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from 'generated/prisma/browser';
 import { PrismaClient } from 'generated/prisma/client';
+import { ReceivableUncheckedCreateInput } from 'generated/prisma/models';
 import { DateTime } from 'luxon';
 import { buildPrismaFilter } from 'src/common/utils/filter.util';
 import { buildPrismaPagination } from 'src/common/utils/pagination.util';
@@ -10,13 +11,7 @@ import { CreateInstallmentBodyDto } from './dto/create-installment.dto';
 import { CreateSaleBodyDto } from './dto/create-sale.dto';
 import { DeleteManySaleBodyDto } from './dto/delete-sale.dto';
 import { ListSalesBodyDto, ListSalesQueryDto } from './dto/list-sales.dto';
-import {
-  CreateInstallmentResponseDto,
-  SaleInstallmentResponseDto,
-  SaleListResponseDto,
-  SaleOverviewResponseDto,
-  SaleRowDto,
-} from './dto/sale-response.dto';
+import { SaleListResponseDto, SaleRowDto } from './dto/sale-response.dto';
 import { SALE_FILTERS_MAP } from './sale.filters';
 import { SALE_SORTABLE_FIELDS } from './sale.sort';
 
@@ -91,6 +86,12 @@ export class SaleService {
       });
 
       const variantsMapping = new Map(variants.map(({ id, ...variant }) => [id, variant]));
+
+      if (variants.length < data.items.length) {
+        const unknownItem = data.items.find((i) => !variantsMapping.get(i.variantId));
+        throw new BadRequestException(`A variante '${unknownItem.variantId}' não foi encontrada`);
+      }
+
       const summary = this.calcSaleSummary(data.items, variantsMapping);
 
       const purchasedAt = DateTime.fromISO(data.purchasedAt, { zone: 'America/Sao_Paulo' }).toJSDate();
@@ -120,22 +121,113 @@ export class SaleService {
         },
         include: {
           customer: { select: { name: true } },
+          receivables: {
+            select: { id: true },
+          },
         },
       });
 
-      const transactionDesc = createdSale.customer ? `Compra de ${createdSale.customer.name}` : `Compra [sem cliente]`;
+      const receivablesToCreate: ReceivableUncheckedCreateInput[] = [];
 
-      // registra a transação
-      await tx.cashFlowTransaction.create({
-        data: {
-          category: 'SALES_REVENUE',
-          flow: 'INFLOW',
-          value: summary.total,
-          description: transactionDesc,
+      if (data.paymentTerm === 'IMMEDIATE') {
+        if (data.payments.length === 0) throw new BadRequestException('Nenhum pagamento definido');
+
+        receivablesToCreate.push({
+          status: 'PAID',
+          type: 'IMMEDIATE',
           saleId: createdSale.id,
-          date: purchasedAt,
-        },
-      });
+          customerId: data.customerId,
+          total: summary.total,
+          paid: summary.total,
+          allocations: {
+            create: data.payments.map((p) => ({
+              amount: p.value,
+              payment: {
+                create: {
+                  method: p.method,
+                  total: p.value,
+                  paidAt: purchasedAt,
+                  transaction: {
+                    create: {
+                      category: 'SALES_REVENUE',
+                      flow: 'INFLOW',
+                      date: purchasedAt,
+                      description: 'Venda realizada',
+                      value: p.value,
+                    },
+                  },
+                },
+              },
+            })),
+          },
+        });
+      }
+
+      if (data.paymentTerm === 'INSTALLMENT') {
+        if (data.receivables.length === 0) throw new BadRequestException('Nenhuma parcela definida');
+
+        data.receivables.forEach((r, idx) => {
+          const dueDate = DateTime.fromISO(r.dueDate, { zone: 'America/Sao_Paulo' }).toJSDate();
+
+          receivablesToCreate.push({
+            customerId: data.customerId,
+            saleId: createdSale.id,
+            status: 'PENDING',
+            type: 'INSTALLMENT',
+            installmentCount: data.receivables.length,
+            installmentIdx: idx + 1,
+            total: r.value,
+            dueDate,
+          });
+        });
+      }
+
+      if (data.paymentTerm === 'TAB') {
+        receivablesToCreate.push({
+          saleId: createdSale.id,
+          customerId: data.customerId,
+          status: 'PENDING',
+          total: summary.total - (data.entry?.value ?? 0),
+          type: 'TAB',
+        });
+      }
+
+      if (data.paymentTerm !== 'IMMEDIATE' && data.entry) {
+        receivablesToCreate.push({
+          status: 'PAID',
+          type: 'IMMEDIATE',
+          saleId: createdSale.id,
+          customerId: data.customerId,
+          total: data.entry.value,
+          paid: data.entry.value,
+          dueDate: null,
+          allocations: {
+            create: {
+              amount: data.entry.value,
+              payment: {
+                create: {
+                  method: data.entry.method,
+                  total: data.entry.value,
+                  paidAt: purchasedAt,
+                  transactions: {
+                    create: {
+                      category: 'SALES_REVENUE',
+                      origin: 'PAYMENT',
+                      date: purchasedAt,
+                      description: 'Entrada ',
+                      flow: 'INFLOW',
+                      value: data.entry.value,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        });
+      }
+
+      // cria os recebiveis, pagamentos e allocations
+      await Promise.all(receivablesToCreate.map((receivable) => tx.receivable.create({ data: receivable })));
 
       // atualiza o estoque das variantes e cria a mov. estoque
       await Promise.all(
