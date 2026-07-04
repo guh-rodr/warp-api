@@ -432,8 +432,9 @@ export class SaleService {
     });
 
     const rowsWithCustomer = rows.map(({ customerId, customerName, ...row }) => ({
-      customer: customerId ? { id: customerId, name: customerName } : null,
       ...row,
+      customer: customerId ? { id: customerId, name: customerName } : null,
+      itemCount: Number(row.itemCount),
     })) as SaleRowDto[];
 
     const result = {
