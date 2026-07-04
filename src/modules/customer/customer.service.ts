@@ -228,7 +228,7 @@ export class CustomerService {
         ...queries,
         OR: [{ name: { startsWith: options.search } }, { phone: { startsWith: options.search } }],
       },
-      orderBy: sort || { createdAt: 'desc' },
+      orderBy: sort || { id: 'desc' },
       ...pagination,
     });
 

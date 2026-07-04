@@ -427,7 +427,7 @@ export class SaleService {
 
     const rows = await this.prisma.saleStats.findMany({
       where: queries,
-      orderBy: sort || { createdAt: 'desc' },
+      orderBy: sort || { id: 'desc' },
       ...pagination,
     });
 

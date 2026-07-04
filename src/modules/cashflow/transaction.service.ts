@@ -76,7 +76,7 @@ export class TransactionService {
         ...queries,
         description: { startsWith: options.search },
       },
-      orderBy: sort || { createdAt: 'desc' },
+      orderBy: sort || { id: 'desc' },
       ...pagination,
     });
 
