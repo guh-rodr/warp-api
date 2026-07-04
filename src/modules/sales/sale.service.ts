@@ -113,7 +113,6 @@ export class SaleService {
         data: {
           ...summary,
           customerId: data.customerId,
-          isInstallment: false,
           purchasedAt,
           items: {
             createMany: { data: saleItems },
