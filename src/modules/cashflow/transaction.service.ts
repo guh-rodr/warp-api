@@ -21,6 +21,7 @@ export class TransactionService {
     const operation = await this.prisma.cashFlowTransaction.create({
       data: {
         ...data,
+        origin: 'MANUAL',
         date: purchasedAt,
       },
     });
