@@ -37,8 +37,8 @@ CREATE OR REPLACE VIEW "CustomerStats" AS
     c.name,
     c.phone,
     c."createdAt",
-    COALESCE(receivable_agg.total_spent, 0)::bigint AS "totalSpent",
-    COALESCE(receivable_agg.debt, 0)::bigint AS debt,
+    COALESCE(receivable_agg.total_spent, 0)::int AS "totalSpent",
+    COALESCE(receivable_agg.debt, 0)::int AS debt,
     sale_agg.last_purchase_at AS "lastPurchaseAt"
   FROM "Customer" c
   LEFT JOIN (

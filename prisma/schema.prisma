@@ -172,8 +172,8 @@ view CustomerStats {
   name           String
   phone          String
   createdAt      DateTime
-  totalSpent     BigInt
-  debt           BigInt
+  totalSpent     Int
+  debt           Int
   lastPurchaseAt DateTime? @db.Timestamp(6)
 }
 
@@ -185,7 +185,7 @@ view SaleStats {
   profit       Int
   purchasedAt  DateTime
   createdAt    DateTime
-  itemCount    BigInt
+  itemCount    Int
   status       String
 }
 
