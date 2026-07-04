@@ -68,7 +68,7 @@ export class CustomerService {
       this.prisma.cashFlowTransaction.aggregate({
         _sum: { value: true },
         where: {
-          flow: 'inflow',
+          flow: 'INFLOW',
           sale: {
             customerId,
           },

@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsDateString, IsNotEmpty, IsNumber, IsString } from 'class-validator';
+import { IsDateString, IsIn, IsNotEmpty, IsNumber, IsString } from 'class-validator';
 import { toCents } from 'src/common/utils/currency.util';
 
 export class CreateTransactionBodyDto {
@@ -11,9 +11,8 @@ export class CreateTransactionBodyDto {
   @IsNotEmpty()
   category: string;
 
-  @IsString()
-  @IsNotEmpty()
-  flow: string;
+  @IsIn(['INFLOW', 'OUTFLOW'])
+  flow: 'INFLOW' | 'OUTFLOW';
 
   @IsDateString()
   date: string;
