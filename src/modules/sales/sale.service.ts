@@ -241,15 +241,16 @@ export class SaleService {
     return sale;
   }
 
-  async getOverview(saleId: string): Promise<SaleOverviewResponseDto> {
+  async getOverview(saleId: string) {
     const sale = await this.prisma.sale.findFirstOrThrow({
       where: { id: saleId },
       select: {
         total: true,
         profit: true,
         purchasedAt: true,
-        transactions: {
-          select: { value: true },
+        receivables: {
+          where: { status: { not: 'PENDING' } },
+          select: { paid: true },
         },
         customer: {
           select: { id: true, name: true },
@@ -257,9 +258,9 @@ export class SaleService {
       },
     });
 
-    const totalReceived = sale.transactions.reduce((acc, curr) => acc + curr.value, 0);
+    const totalReceived = sale.receivables.reduce((acc, curr) => acc + curr.paid, 0);
 
-    const status = totalReceived === sale.total ? 'paid' : 'pending';
+    const status = totalReceived === sale.total ? 'PAID' : 'PENDING';
 
     const profitMargin = sale.total === 0 ? 0 : sale.profit / sale.total;
     const profitReceived = totalReceived * profitMargin;
@@ -325,33 +326,32 @@ export class SaleService {
     await this.prisma.sale.deleteMany({ where: { id: { in: data.ids } } });
   }
 
-  async getInstallments(saleId: string): Promise<SaleInstallmentResponseDto[]> {
-    const sale = await this.prisma.sale.findFirstOrThrow({
-      where: {
-        id: saleId,
-      },
-      select: {
-        transactions: {
-          where: { flow: 'inflow', category: 'SALES_REVENUE' },
-          select: {
-            id: true,
-            date: true,
-            value: true,
-          },
-          orderBy: {
-            date: 'desc',
-          },
-        },
-      },
-    });
-
-    const result = sale.transactions.map(({ date, ...i }) => ({
-      ...i,
-      paidAt: date,
-      value: i.value,
-    }));
-
-    return result;
+  async getInstallments(saleId: string) {
+    // async getInstallments(saleId: string): Promise<SaleInstallmentResponseDto[]> {
+    // const sale = await this.prisma.sale.findFirstOrThrow({
+    //   where: {
+    //     id: saleId,
+    //   },
+    //   select: {
+    //     transactions: {
+    //       where: { flow: 'INFLOW', category: 'SALES_REVENUE' },
+    //       select: {
+    //         id: true,
+    //         date: true,
+    //         value: true,
+    //       },
+    //       orderBy: {
+    //         date: 'desc',
+    //       },
+    //     },
+    //   },
+    // });
+    // const result = sale.transactions.map(({ date, ...i }) => ({
+    //   ...i,
+    //   paidAt: date,
+    //   value: i.value,
+    // }));
+    // return result;
   }
 
   async createInstallment(saleId: string, data: CreateInstallmentBodyDto): Promise<CreateInstallmentResponseDto> {
