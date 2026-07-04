@@ -1,4 +1,4 @@
-import { ApiProperty, PickType } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import { Color } from '../enums/color.enum';
 import { Print } from '../enums/print.enum';
 import { Size } from '../enums/size.enum';
@@ -115,20 +115,4 @@ export class SaleItemResponseDto {
 
   @ApiProperty({ description: 'Preço de venda', example: 230 })
   salePrice: number;
-}
-
-export class SaleInstallmentResponseDto {
-  @ApiProperty({ example: 'ch72gsb32000...', description: 'ID da parcela (CUID)' })
-  id: string;
-
-  @ApiProperty({ description: 'Valor da parcela', example: 60 })
-  value: number;
-
-  @ApiProperty({ description: 'Data de pagamento (primeira parcela)', example: '2026-01-16' })
-  paidAt: Date;
-}
-
-export class CreateInstallmentResponseDto extends PickType(SaleInstallmentResponseDto, ['id', 'value']) {
-  @ApiProperty({ description: 'Data de pagamento (primeira parcela)', example: '2026-01-16' })
-  date: Date;
 }

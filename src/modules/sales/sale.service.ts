@@ -7,7 +7,6 @@ import { buildPrismaFilter } from 'src/common/utils/filter.util';
 import { buildPrismaPagination } from 'src/common/utils/pagination.util';
 import { buildPrismaSort } from 'src/common/utils/sort.util';
 import { PrismaService } from 'src/prisma.service';
-import { CreateInstallmentBodyDto } from './dto/create-installment.dto';
 import { CreateSaleBodyDto } from './dto/create-sale.dto';
 import { DeleteManySaleBodyDto } from './dto/delete-sale.dto';
 import { ListSalesBodyDto, ListSalesQueryDto } from './dto/list-sales.dto';
@@ -324,94 +323,6 @@ export class SaleService {
 
   async deleteMany(data: DeleteManySaleBodyDto) {
     await this.prisma.sale.deleteMany({ where: { id: { in: data.ids } } });
-  }
-
-  async getInstallments(saleId: string) {
-    // async getInstallments(saleId: string): Promise<SaleInstallmentResponseDto[]> {
-    // const sale = await this.prisma.sale.findFirstOrThrow({
-    //   where: {
-    //     id: saleId,
-    //   },
-    //   select: {
-    //     transactions: {
-    //       where: { flow: 'INFLOW', category: 'SALES_REVENUE' },
-    //       select: {
-    //         id: true,
-    //         date: true,
-    //         value: true,
-    //       },
-    //       orderBy: {
-    //         date: 'desc',
-    //       },
-    //     },
-    //   },
-    // });
-    // const result = sale.transactions.map(({ date, ...i }) => ({
-    //   ...i,
-    //   paidAt: date,
-    //   value: i.value,
-    // }));
-    // return result;
-  }
-
-  async createInstallment(saleId: string, data: CreateInstallmentBodyDto): Promise<CreateInstallmentResponseDto> {
-    const paidAt = DateTime.fromISO(data.paidAt, { zone: 'America/Sao_Paulo' }).toJSDate();
-
-    const sale = await this.prisma.sale.findFirst({
-      where: { id: saleId },
-      select: {
-        customer: { select: { name: true } },
-        _count: { select: { transactions: true } },
-      },
-    });
-
-    if (!sale) {
-      throw new HttpException('Erro ao processar a requisição', HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-
-    const newInstallmentCount = sale._count.transactions + 1;
-
-    const updatedSale = await this.prisma.sale.update({
-      where: { id: saleId },
-      data: {
-        transactions: {
-          create: {
-            date: paidAt,
-            description: `Compra de ${sale.customer.name} - Parcela ${newInstallmentCount}`,
-            value: data.value,
-            flow: 'inflow',
-            category: 'installment',
-          },
-        },
-      },
-      select: {
-        transactions: {
-          select: {
-            id: true,
-            value: true,
-            date: true,
-          },
-        },
-      },
-    });
-
-    const createdInstallment = updatedSale.transactions[updatedSale.transactions.length - 1];
-
-    return {
-      id: createdInstallment.id,
-      value: createdInstallment.value,
-      date: createdInstallment.date,
-    };
-  }
-
-  async deleteInstallment(id: string) {
-    await this.prisma.cashFlowTransaction.delete({
-      where: {
-        id,
-        flow: 'inflow',
-        category: 'installment',
-      },
-    });
   }
 
   async listTable(options: ListSalesQueryDto, filter: ListSalesBodyDto): Promise<SaleListResponseDto> {

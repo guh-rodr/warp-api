@@ -1,7 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { UnauthorizedErrorResponseDto, ValidationErrorResponseDto } from 'src/common/dtos/error-responses.dto';
-import { CreateInstallmentBodyDto } from './dto/create-installment.dto';
 import { CreateSaleBodyDto } from './dto/create-sale.dto';
 import { DeleteManySaleBodyDto } from './dto/delete-sale.dto';
 import { ListSalesBodyDto, ListSalesQueryDto } from './dto/list-sales.dto';
@@ -63,30 +62,5 @@ export class SaleController {
   @Delete()
   deleteMany(@Body() body: DeleteManySaleBodyDto) {
     return this.saleService.deleteMany(body);
-  }
-
-  @ApiOperation({ summary: 'Retorna uma lista de parcelas relacionadas a venda' })
-  @ApiResponse({ status: 404, description: 'Nenhuma venda encontrada com esse ID' })
-  @Get('/:id/installments')
-  getInstallments(@Param('id') id: string) {
-    return this.saleService.getInstallments(id);
-  }
-
-  @ApiOperation({ summary: 'Registra uma nova parcela' })
-  @ApiResponse({ status: 400, description: 'Erro de validação nos campos enviados', type: ValidationErrorResponseDto })
-  @ApiResponse({ status: 404, description: 'Nenhuma venda encontrada com esse ID' })
-  @Post('/:id/installments')
-  createInstallment(@Param('id') saleId: string, @Body() body: CreateInstallmentBodyDto) {
-    return this.saleService.createInstallment(saleId, body);
-  }
-
-  @ApiOperation({ summary: 'Exclui uma parcela' })
-  @ApiParam({ name: 'id', description: 'ID da parcela' })
-  @ApiResponse({ status: 204, description: 'Parcela excluída com sucesso' })
-  @ApiResponse({ status: 404, description: 'Nenhuma parcela encontrada com esse ID' })
-  @HttpCode(204)
-  @Delete('/:sid/installments/:id')
-  deleteInstallment(@Param('id') id: string) {
-    return this.saleService.deleteInstallment(id);
   }
 }
