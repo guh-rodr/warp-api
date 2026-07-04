@@ -36,12 +36,12 @@ export class TransactionService {
     const transaction = await this.prisma.cashFlowTransaction.findFirstOrThrow({
       where: { id },
       select: {
-        saleId: true,
+        paymentId: true,
       },
     });
 
-    if (transaction.saleId) {
-      throw new ForbiddenException('Não é possível atualizar uma transação relacionada a uma venda');
+    if (transaction.paymentId) {
+      throw new ForbiddenException('Não é possível atualizar uma transação relacionada a pagamento');
     }
 
     const operation = await this.prisma.cashFlowTransaction.update({
@@ -99,9 +99,9 @@ export class TransactionService {
       where: { id },
     });
 
-    if (transaction.saleId) {
+    if (transaction.paymentId) {
       await this.prisma.sale.delete({
-        where: { id: transaction.saleId },
+        where: { id: transaction.paymentId },
       });
     }
   }
