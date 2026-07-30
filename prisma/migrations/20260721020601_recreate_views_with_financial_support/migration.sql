@@ -6,6 +6,7 @@ CREATE VIEW "SaleStats" AS
     s.profit,
     COALESCE(item_agg.count, 0) AS "itemCount",
     s."purchasedAt",
+    s."createdAt",
     CASE
       WHEN COALESCE(receivable_agg.paid, 0) = 0 THEN 'PENDING'
       WHEN receivable_agg.paid >= s.total THEN 'PAID'
@@ -27,7 +28,6 @@ CREATE VIEW "SaleStats" AS
     WHERE "saleId" IS NOT NULL
     GROUP BY "saleId"
   ) item_agg ON item_agg."saleId" = s.id;
-
 
 
 -- CLIENTE
@@ -58,16 +58,17 @@ CREATE OR REPLACE VIEW "CustomerStats" AS
   ) sale_agg ON sale_agg."customerId" = c.id;
 
 
-
 -- PRODUTO
 CREATE VIEW "ProductStats" AS
   SELECT
     p.id,
     p.name,
+    p."isVariable",
     COALESCE(variant_agg.count, 0) as "variantCount",
     COALESCE(variant_agg.quantity, 0) as "quantity",
-    variant_agg.min_price as "minPrice",
-    variant_agg.max_price as "maxPrice",
+    variant_agg.min_price as "minSalePrice",
+    variant_agg.max_price as "maxSalePrice",
+    category_agg.id AS "categoryId",
     category_agg.name AS "categoryName"
   FROM "Product" p
   LEFT JOIN "Category" category_agg ON category_agg.id = p."categoryId"
@@ -81,7 +82,6 @@ CREATE VIEW "ProductStats" AS
     FROM "ProductVariant"
     GROUP BY "productId"
   ) variant_agg ON variant_agg."productId" = p.id;
-
 
 
 -- TRANSAÇÃO

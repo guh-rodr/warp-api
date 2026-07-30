@@ -97,22 +97,6 @@ model StockMovement {
   variant   ProductVariant      @relation(fields: [variantId], references: [id])
 }
 
-model CashFlowTransaction {
-  id           String               @id @default(cuid())
-  description  String
-  value        Int
-  category     String
-  date         DateTime
-  createdAt    DateTime             @default(now())
-  paymentId    String?
-  flow         TransactionDirection
-  origin       TransactionOrigin
-  payment      Payment?             @relation(fields: [paymentId], references: [id])
-  reversalOfId String?              @unique
-  reversalOf   CashFlowTransaction? @relation("CashFlowReversal", fields: [reversalOfId], references: [id])
-  reversedBy   CashFlowTransaction? @relation("CashFlowReversal")
-}
-
 model Sale {
   id             String          @id @default(cuid())
   total          Int
@@ -127,25 +111,29 @@ model Sale {
 }
 
 model Payment {
-  id           String                @id @default(cuid())
-  customerId   String?
-  method       PaymentMethod
-  total        Int
-  paidAt       DateTime
-  createdAt    DateTime              @default(now())
-  reversedAt   DateTime?
-  transactions CashFlowTransaction[]
-  customer     Customer?             @relation(fields: [customerId], references: [id])
-  allocations  PaymentAllocation[]
+  id          String               @id @default(cuid())
+  type        PaymentType
+  method      PaymentMethod?
+  total       Int
+  customerId  String?
+  paidAt      DateTime
+  createdAt   DateTime             @default(now())
+  customer    Customer?            @relation(fields: [customerId], references: [id])
+  allocations PaymentAllocation[]
+  transaction CashFlowTransaction?
 }
 
 model PaymentAllocation {
-  id           String     @id @default(cuid())
+  id           String              @id @default(cuid())
   amount       Int
   paymentId    String
   receivableId String
-  payment      Payment    @relation(fields: [paymentId], references: [id])
-  receivable   Receivable @relation(fields: [receivableId], references: [id])
+  reversalOfId String?
+  createdAt    DateTime            @default(now())
+  payment      Payment             @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  receivable   Receivable          @relation(fields: [receivableId], references: [id], onDelete: Restrict)
+  reversalOf   PaymentAllocation?  @relation("AllocationReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversals    PaymentAllocation[] @relation("AllocationReversal")
 }
 
 model Receivable {
@@ -156,15 +144,32 @@ model Receivable {
   paid             Int                 @default(0)
   installmentIdx   Int?
   installmentCount Int?
+  description      String
   customerId       String?
-  saleId           String
+  saleId           String?
   paidAt           DateTime?
-  dueDate          DateTime?
+  dueAt            DateTime?
   createdAt        DateTime            @default(now())
-  deletedAt        DateTime?
-  allocations      PaymentAllocation[]
+  occurredAt       DateTime
   customer         Customer?           @relation(fields: [customerId], references: [id])
-  sale             Sale                @relation(fields: [saleId], references: [id])
+  sale             Sale?               @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  allocations      PaymentAllocation[]
+}
+
+model CashFlowTransaction {
+  id           String                @id @default(cuid())
+  description  String
+  value        Int
+  category     String
+  flow         TransactionDirection
+  origin       TransactionOrigin
+  paymentId    String?               @unique
+  reversalOfId String?
+  ocurredAt    DateTime
+  createdAt    DateTime              @default(now())
+  payment      Payment?              @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  reversalOf   CashFlowTransaction?  @relation("CashFlowReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversedBy   CashFlowTransaction[] @relation("CashFlowReversal")
 }
 
 view CustomerStats {
@@ -226,6 +231,26 @@ view StockMovementStats {
   variantColor String
 }
 
+view ReceivableStats {
+  id              String
+  customerId      String
+  customerName    String
+  total           Int
+  paid            Int
+  hasFinancialLog Boolean
+  description     String
+  saleId          String
+  status          ReceivableStatus
+  occurredAt      DateTime
+  dueAt           DateTime
+}
+
+enum PaymentType {
+  CHARGE
+  REVERSAL_REFUND
+  REVERSAL_CORRECTION
+}
+
 enum TransactionOrigin {
   MANUAL
   PAYMENT
@@ -258,6 +283,7 @@ enum ReceivableStatus {
   PENDING
   PARTIAL
   PAID
+  CANCELLED
 }
 
 enum ReceivableType {
